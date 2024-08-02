@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minesweeper</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            height: 100vh;
+            justify-content: center;
+        }
+        #header-img {
+            width: 200px;
+            margin-bottom: 20px;
+        }
+        #minesweeper {
+            display: grid;
+            grid-template-columns: repeat(10, 30px);
+            grid-gap: 2px;
+            position: relative;
+        }
+        .cell {
+            width: 30px;
+            height: 30px;
+            background-size: cover;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            border: 1px solid #999;
+            font-size: 14px;
+            color: #000;
+        }
+        .cell.revealed {
+            cursor: default;
+        }
+        .cell.mine {
+            background-image: url('https://media.discordapp.net/attachments/1169491681507278863/1268777104904814603/bomb-icon-pixel-art-illustration-8bit_749131-10.jpg?ex=66ada842&is=66ac56c2&hm=bbd28dc2cf38cc788345e5e889cce37d0b6050922894afbd2c442bcd43fd6c8c&');
+        }
+        .cell.exploding {
+            background-image: url('https://media.discordapp.net/attachments/1169491681507278863/1268777294046957638/destructive-pixel-explosion-red-detonation-burst-of-energy-with-yellow-fire-flaming.jpg?ex=66ada86f&is=66ac56ef&hm=f8d41fb2273ad128904aa2bd8a121143d7250cbeeb0e58f8911230580c4ce577&');
+            animation: explode 0.5s forwards;
+        }
+        .cell.unrevealed.chessboard-even {
+            background-image: url('https://media.discordapp.net/attachments/1169491681507278863/1268810155714416741/IMG_20240802_112800.jpg?ex=66adc70a&is=66ac758a&hm=70620afeae449d996b61de4b6c0979b95975b18c097cad362ea45231fb5e71fc&');
+        }
+        .cell.unrevealed.chessboard-odd {
+            background-image: url('https://media.discordapp.net/attachments/1169491681507278863/1268810142724526110/IMG_20240802_112816.jpg?ex=66adc707&is=66ac7587&hm=f82af95507d3e38018bf543f67fab4ea7d00f956d7b4de08e752462a6a1768c6&');
+        }
+        @keyframes explode {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.2); }
+        }
+        #game-over-message {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            z-index: 1000;
+        }
+        #game-over-message img {
+            width: 100px; /* Adjust size as needed */
+            height: auto;
+        }
+        #game-over-message button, #retry-btn {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        #game-over-message button:hover, #retry-btn:hover {
+            background-color: #45a049;
+        }
+        #retry-btn {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <img id="header-img" src="https://media.discordapp.net/attachments/1169491681507278863/1268790624514084936/IMG_20240802_100653-removebg-preview.png?ex=66adb4d9&is=66ac6359&hm=281a0499a98a1fa24bbab4ac21983c766f603a50a5a9eb480c950fc93742a1a9&" alt="Minesweeper Header">
+    <div id="minesweeper"></div>
+    <div id="game-over-message">
+        <img src="https://media.discordapp.net/attachments/1169491681507278863/1268840958523474001/game-over-game.gif?ex=66ade3ba&is=66ac923a&hm=9ae5e23c93bac0b424fe6f5dff4f53e668e7aaf2d8ab771a2fdaeeed8859dad0&" alt="Game Over">
+        <button id="ok-btn">OK</button>
+    </div>
+    <button id="retry-btn">Retry</button>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const size = 10;
+            const minesCount = 20;
+            let board = [];
+            let mineLocations = [];
+            let gameOver = false;
+
+            const generateBoard = () => {
+                board = Array.from({ length: size }, () => Array.from({ length: size }, () => ({
+                    mine: false,
+                    revealed: false,
+                    adjacentMines: 0
+                })));
+                while (mineLocations.length < minesCount) {
+                    let x = Math.floor(Math.random() * size);
+                    let y = Math.floor(Math.random() * size);
+                    if (!board[x][y].mine) {
+                        board[x][y].mine = true;
+                        mineLocations.push({ x, y });
+                    }
+                }
+                for (let i = 0; i < size; i++) {
+                    for (let j = 0; j < size; j++) {
+                        if (!board[i][j].mine) {
+                            board[i][j].adjacentMines = countAdjacentMines(i, j);
+                        }
+                    }
+                }
+            };
+
+            const countAdjacentMines = (x, y) => {
+                let count = 0;
+                for (let i = Math.max(0, x - 1); i <= Math.min(size - 1, x + 1); i++) {
+                    for (let j = Math.max(0, y - 1); j <= Math.min(size - 1, y + 1); j++) {
+                        if (board[i][j].mine) count++;
+                    }
+                }
+                return count;
+            };
+
+            const revealCell = (x, y) => {
+                if (board[x][y].revealed || gameOver) return;
+                board[x][y].revealed = true;
+                let cell = document.querySelector(`[data-x='${x}'][data-y='${y}']`);
+                cell.classList.remove('unrevealed');
+                cell.classList.add('revealed');
+                if (board[x][y].mine) {
+                    cell.classList.add('mine');
+                    gameOver = true;
+                    revealMinesOneByOne();
+                } else {
+                    cell.textContent = board[x][y].adjacentMines || '';
+                    if (board[x][y].adjacentMines > 0) {
+                        cell.style.color = getRandomColor();
+                    }
+                    if (board[x][y].adjacentMines === 0) {
+                        for (let i = Math.max(0, x - 1); i <= Math.min(size - 1, x + 1); i++) {
+                            for (let j = Math.max(0, y - 1); j <= Math.min(size - 1, y + 1); j++) {
+                                if (!board[i][j].revealed) revealCell(i, j);
+                            }
+                        }
+                    }
+                }
+            };
+
+            const revealMinesOneByOne = () => {
+                mineLocations.forEach((location, index) => {
+                    setTimeout(() => {
+                        let cell = document.querySelector(`[data-x='${location.x}'][data-y='${location.y}']`);
+                        cell.classList.remove('unrevealed');
+                        cell.classList.add('mine');
+                        if ('vibrate' in navigator) navigator.vibrate(100);
+                        setTimeout(() => cell.classList.add('exploding'), 500);
+                    }, index * 500);
+                });
+                setTimeout(() => {
+                    document.getElementById('game-over-message').style.display = 'block';
+                    document.getElementById('retry-btn').style.display = 'block';
+                           }, mineLocations.length * 500 + 500);
+                                       };
+
+                                       const createBoard = () => {
+                                           const minesweeper = document.getElementById('minesweeper');
+                                           minesweeper.innerHTML = '';
+                                           minesweeper.style.gridTemplateColumns = `repeat(${size}, 30px)`;
+                                           for (let i = 0; i < size; i++) {
+                                               for (let j = 0; j < size; j++) {
+                                                   let cell = document.createElement('div');
+                                                   cell.classList.add('cell', 'unrevealed');
+                                                   cell.classList.add((i + j) % 2 === 0 ? 'chessboard-even' : 'chessboard-odd');
+                                                   cell.dataset.x = i;
+                                                   cell.dataset.y = j;
+                                                   cell.addEventListener('click', () => {
+                                                       if (!gameOver) {
+                                                           revealCell(i, j);
+                                                       }
+                                                   });
+                                                   minesweeper.appendChild(cell);
+                                               }
+                                           }
+                                       };
+
+                                       const getRandomColor = () => {
+                                           const letters = '0123456789ABCDEF';
+                                           let color = '#';
+                                           for (let i = 0; i < 6; i++) {
+                                               color += letters[Math.floor(Math.random() * 16)];
+                                           }
+                                           return color;
+                                       };
+
+                                       const resetGame = () => {
+                                           gameOver = false;
+                                           mineLocations = [];
+                                           generateBoard();
+                                           createBoard();
+                                           document.getElementById('game-over-message').style.display = 'none';
+                                           document.getElementById('retry-btn').style.display = 'none';
+                                       };
+
+                                       document.getElementById('retry-btn').addEventListener('click', resetGame);
+                                       document.getElementById('ok-btn').addEventListener('click', () => {
+                                           document.getElementById('game-over-message').style.display = 'none';
+                                           document.getElementById('retry-btn').style.display = 'block';
+                                       });
+
+                                       resetGame();
+                                   });
+                               </script>
+                           </body>
+                           </html>
